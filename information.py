@@ -1,19 +1,18 @@
-from http import client
-from optparse import Values
-import lxml
+from socket import timeout
 import time
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
+import serial
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium import webdriver
 
+from bs4 import BeautifulSoup
 
 base_url = "http://192.168.0.1"
-
+ser = serial.Serial('/dev/ttyUSB0', 9600)
+time.sleep(2)
 
 def get_values(html):
 
@@ -34,6 +33,8 @@ def get_values(html):
               "client_count": client_count, "battery": battery
               }
 
+    return values
+
 def get_page(url):
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
@@ -46,8 +47,34 @@ def get_page(url):
     driver.find_element(By.ID, 'loginBtn').click()
     time.sleep(1)
 
-    get_values(driver.page_source)
+    page_source = driver.page_source
     driver.close()
 
+    return page_source
 
-get_page(base_url)
+def charge():
+    ser.writelines(b'1') 
+
+def stop_charge():
+    ser.writelines(b'0')
+    time.sleep(200)
+
+while True:
+
+    page_source = get_page(base_url)
+    values = get_values(page_source)
+    signal_strength = values['signal_strength'][0][15:]
+    client_count = values['client_count'][14:]
+    battery = values['battery'][0]
+
+    try:
+        if int(battery) < 20:
+            charge() 
+        else:
+            stop_charge()
+
+    except Exception as e:
+        print(e)
+
+
+
